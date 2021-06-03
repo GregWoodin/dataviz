@@ -1,0 +1,67 @@
+---
+title: "Conceptual metaphor and graphical convention influence the interpretation of line graphs"
+author: "Greg Woodin, Bodo Winter, and Lace Padilla"
+date: "10/12/2018"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: 4
+  word_document:
+    toc: yes
+    toc_depth: 4
+  html_document:
+    highlight: tango
+    number_sections: yes
+    theme: yeti
+    toc: yes
+    toc_depth: 4
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This is the code used to identify the valenced quantities used in the graphs in 'Conceptual metaphor and graphical convention influence the interpretation of line graphs'.
+
+Load tidyverse and open list of valence norms in ascending order of mean valence:
+
+```{r list, message = FALSE}
+
+library(tidyverse)
+(df <- arrange(read_csv('../data/valence_list.csv'), V.Mean.Sum))
+
+```
+
+Find 20 most negatively valenced words in dataset:
+
+```{r positive}
+
+filter(df[1:20, ])
+
+```
+
+Find 20 most positively valenced words in dataset:
+
+```{r negative}
+
+filter(df[13895:13915, ]) %>% arrange()
+
+```
+
+Find mean standard deviation:
+
+```{r mean_SD}
+
+round(mean(df$V.SD.Sum), 2)
+
+```
+
+Find SD of words chosen for experimental stimuli (vacation days, murders):
+
+```{r SD_stimuli}
+
+df %>% filter(Word == 'vacation') %>% with(mean(V.SD.Sum))
+df %>% filter(Word == 'murder') %>% with(mean(V.SD.Sum))
+
+```
+

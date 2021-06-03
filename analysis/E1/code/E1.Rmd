@@ -1,0 +1,1078 @@
+---
+title: Conceptual metaphor and graphical convention influence the interpretation of line graphs
+author: "Greg Woodin, Bodo Winter, and Lace Padilla"
+date: "09/04/2019"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '4'
+  word_document:
+    toc: yes
+    toc_depth: '4'
+  html_document:
+    highlight: tango
+    number_sections: yes
+    theme: yeti
+    toc: yes
+    toc_depth: 4
+---
+
+<br>
+
+# Main analyses
+
+This is the code used for the analysis reported in Experiment 1 of 'Conceptual metaphor and graphical convention influence the interpretation of line graphs'.
+
+## Data wrangling
+
+Load packages:
+
+```{r packages, message = FALSE}
+
+
+library(plyr)         # Data processing
+library(tidyverse)    # Data processing
+library(brms)         # Bayesian mixed models
+library(ggmcmc)       # Data visualisation
+library(tidybayes)    # Data visualisation
+
+```
+
+Get citation information for R and for the packages we use:
+
+```{r citation}
+
+# R:
+R.Version()  
+citation()
+
+# RStudio:
+#RStudio.Version()
+
+# plyr:
+citation('plyr')
+packageVersion('plyr')
+
+# tidyverse:
+citation('tidyverse')
+packageVersion('tidyverse')
+
+# brms:
+citation('brms')
+toBibtex(citation('brms'))
+packageVersion('brms')
+
+# ggpubr:
+citation('ggpubr')
+packageVersion('ggpubr')
+
+# ggmcmc:
+citation('ggmcmc')
+packageVersion('ggmcmc')
+
+# tidybayes:
+citation('tidybayes')
+packageVersion('tidybayes')
+
+```
+
+Load datasets and give them shorter names for easier coding:
+
+```{r data, message = FALSE}
+
+df1 <- read_csv('../data/data_viz_1.csv')
+df2 <- read_csv('../data/data_viz_2.csv')
+df3 <- read_csv('../data/data_viz_3.csv')
+df4 <- read_csv('../data/data_viz_4.csv')
+df5 <- read_csv('../data/data_viz_5.csv')
+df6 <- read_csv('../data/data_viz_6.csv')
+
+```
+
+Disable scientific notation:
+
+```{r scientific}
+
+options("scipen" = 999)
+
+```
+
+Create new column in each dataset denoting experiment version:
+
+```{r version}
+
+df1$Version <- 1
+df2$Version <- 2
+df3$Version <- 3
+df4$Version <- 4
+df5$Version <- 5
+df6$Version <- 6
+
+```
+
+Join data sets together: 
+
+```{r join}
+
+df <- rbind.fill(df1, df2, df3, df4, df5, df6)
+
+```
+
+We noticed that some trials had response latencies of 0. Check how many response latencies of 0 there were per trial: 
+
+```{r RT_0}
+
+table(df$V1_FirstClick == 0)    
+table(df$V2_FirstClick == 0)    
+table(df$V3_FirstClick == 0)    
+table(df$V4_FirstClick == 0) 
+
+```
+
+These zero response latencies seem to be mostly in the first trial, with some malfunctions in the other trials that can maybe be put down to software errors. Look to see if this error seems to disproportionately affect specific versions of the experiment:
+
+```{r which_version}
+
+table(df$V1_FirstClick == 0, df$Version)
+
+```
+
+It seems to affect the 5th and 6th versions of the experiment mostly. See if it has anything to do with participants not answering the practice question:
+
+```{r noanswer_prac}
+
+df2 <- filter(df, is.na(Instructions))
+table(df2$V1_FirstClick == 0, df2$Version)
+
+```
+
+It doesn't seem to be anything to do with the practice question - there weren't actually many respondents that didn't answer the practice question. This is strange but there seems to have been a problem with the 5th and 6th versions of the experiment. We'll exclude these later.
+
+Create Accuracy columns denoting whether participant got answer right to each question:
+
+```{r accuracy}
+
+df <- mutate(df, V1_a = ifelse(V1_r %in% 'Improving', 'right', 'wrong'))    # First question
+df <- mutate(df, V2_a = ifelse(V2_r %in% 'Declining', 'right', 'wrong'))    # Second question
+df <- mutate(df, V3_a = ifelse(V3_r %in% 'Declining', 'right', 'wrong'))    # Third question
+df <- mutate(df, V4_a = ifelse(V4_r %in% 'Improving', 'right', 'wrong'))    # Fourth question
+
+```
+
+Exclude participants who got the trick question incorrect. Also, calculate how many participants remain after this exclusion, and how many participants were excluded:
+
+```{r exclude}
+
+# Original number of participants:
+(old_len <- length(df$Subject))  
+
+# Original number of participants remaining in each condition: 
+aggregate(cbind(count = Subject) ~ Version, 
+          data = df, 
+          length)
+
+# Exclude participants who got trick question wrong:
+df <- filter(df, Trick == 'quickly')
+
+# Number of participants remaining:
+(new_len <- length(df$Subject))   
+
+# Number of participants excluded:
+old_len - new_len
+
+```
+
+Exclude rows with response latencies more than 2 standard deviations above mean. Also, calculate how many participants remain after this exclusion, and how many participants were excluded:
+
+```{r exclude_3SD}
+
+# Preliminaries:
+cols <- c(df$V1_FirstClick, df$V2_FirstClick, df$V3_FirstClick, df$V4_FirstClick)   # Combine values of columns
+cols <- as.numeric(cols)    # Make numeric
+up_lim <- (mean(cols) + (sd(cols) * 2))   # Upper limit
+
+# Exclude:
+
+    # First column:
+    df$V1_FirstClick <- as.numeric(df$V1_FirstClick)    # Make numeric
+    df <- filter(df, V1_FirstClick < up_lim)    # Filter
+
+    # Second column:
+    df$V2_FirstClick <- as.numeric(df$V2_FirstClick)    # Make numeric
+    df <- filter(df, V2_FirstClick < up_lim)    # Filter
+
+    # Third column:
+    df$V3_FirstClick <- as.numeric(df$V3_FirstClick)    # Make numeric
+    df <- filter(df, V3_FirstClick < up_lim)    # Filter
+
+    # Fourth column:
+    df$V4_FirstClick <- as.numeric(df$V4_FirstClick)    # Make numeric
+    df <- filter(df, V4_FirstClick < up_lim)    # Filter
+
+# Number of participants after exclusion:
+newer_len <- (length(df$Subject))
+
+# Number of participants excluded
+new_len - newer_len           
+
+# 2 SDs above mean:
+round(up_lim, 1)
+
+```
+
+Find out info about participants:
+
+```{r participants}
+
+# Age
+df$Age <- as.numeric(df$Age)    # Make numeric
+range(df$Age)   # Range
+round(mean(df$Age), 0)    # Mean
+round(sd(df$Age), 0)    # Mean
+
+# Gender
+(xtab <- table(df$Gender))    # Raw stats
+round(prop.table(xtab), 3) * 100    # Proportions (in order)
+
+# Number of participants remaining in each condition: 
+(pps <- aggregate(cbind(count = Subject) ~ Version, 
+          data = df, 
+          length))
+
+# Proportions
+(pps$count <- round(prop.table(pps$count), 3) * 100)   
+
+```
+
+Remove extraneous columns:
+
+```{r col_remove}
+
+# Columns:
+df <- select(df, Subject, V1_r, V1_RT = V1_FirstClick, V2_r, V2_RT = V2_FirstClick, V3_r, V3_RT = V3_FirstClick, V4_r, V4_RT = V4_FirstClick, Version:V4_a, Ed)
+
+```
+
+Create AxisInversion column:
+
+```{r axis_inversion}
+
+# Create column in df:
+df <- mutate(df, AxisInversion = ifelse(df$Version %in% c(1, 2), 'normal', 'inverted'))
+
+# Check to see if it's worked:
+sample_n(df, 10) %>% 
+  select(Version, AxisInversion)
+
+```
+
+Create Orientation column:
+
+```{r orientation}
+
+# Create column in df:
+df <- mutate(df, Orientation = ifelse(Version %in% c('1', '3', '5'), 'quant_y', 'quant_x'))  
+# Check to see if it's worked:
+sample_n(df, 10) %>% 
+  select(Version, Orientation)
+
+```
+
+Make data long and make valence column:
+
+```{r long_valence}
+
+  # Make long format:
+  df <- gather(df, Response, Measurement, c('V1_r', 'V2_r', 'V3_r', 'V4_r', 'V1_RT', 'V2_RT', 'V3_RT', 'V4_RT'), factor_key = FALSE) 
+
+  # Order data frame by subject column:
+  df <- arrange(df, Subject)
+
+  # Create column:
+  df <- mutate(df, Valence = ifelse(Response %in% c('V1_r', 'V2_r'), 'positive', 'negative'))
+
+  # Check to see if it's worked:
+  df %>% select(Subject, Response, Measurement, Valence) %>% head()
+
+```
+
+Make column for whether 'quant_y' graphs aligned with vertical valence metaphors:
+
+```{r valence_aligned}
+
+  # Create column and fill in each row as NA by default:
+  df$Val_Al <- NA
+
+  # Code whether graph did or did not align with valence metaphors for quant-y graphs:
+  df <- 
+    mutate(df, Val_Al = case_when(
+    Version == 1 & Valence == 'positive' ~ 'yes',
+    Version == 3 & Valence == 'negative' ~ 'yes',
+    Version == 5 & Valence == 'positive' ~ 'yes',
+    Version == 1 & Valence == 'negative' ~ 'no',
+    Version == 3 & Valence == 'positive' ~ 'no',
+    Version == 5 & Valence == 'negative' ~ 'no'))
+  
+  # Check it's worked:
+  sample_n(df, 10) %>%
+    select(Version, Valence, Val_Al)
+  
+```  
+
+Make Accuracy column:
+
+```{r long}
+
+  df <- 
+    mutate(df, Accuracy = case_when(
+    Response == 'V1_r' & Measurement == 'Declining' ~ 'wrong',
+    Response == 'V2_r' & Measurement == 'Improving' ~ 'wrong',
+    Response == 'V3_r' & Measurement == 'Improving' ~ 'wrong',
+    Response == 'V4_r' & Measurement == 'Declining' ~ 'wrong',
+    Response == 'V1_r' & Measurement == 'Improving' ~ 'right',
+    Response == 'V2_r' & Measurement == 'Declining' ~ 'right',
+    Response == 'V3_r' & Measurement == 'Declining' ~ 'right',
+    Response == 'V4_r' & Measurement == 'Improving' ~ 'right',
+    Response == 'V1_r' & Measurement == 'Neither declining or improving' ~ 'wrong',
+    Response == 'V2_r' & Measurement == 'Neither declining or improving' ~ 'wrong',
+    Response == 'V3_r' & Measurement == 'Neither declining or improving' ~ 'wrong',
+    Response == 'V4_r' & Measurement == 'Neither declining or improving' ~ 'wrong'))
+
+  # Order data frame by subject column:
+  df <- arrange(df, Subject)
+  
+  # Check to see if it's worked:
+  select(df, Subject, Response, Measurement, Accuracy) %>% head()
+
+```
+
+Create column for x-inverted versus y-inverted graphs:
+
+```{r x_versus_y}
+
+# Create column and fill in each row as NA by default:
+df$InvertXY <-  NA
+  
+# Code whether x-axis or y-axis was inverted
+df <- 
+  mutate(df, InvertXY = case_when(
+  Version == 3 ~ 'y',
+  Version == 4 ~ 'y',
+  Version == 5 ~ 'x',
+  Version == 6 ~ 'x'))
+  
+```
+
+Create two separate datasets for looking at accuracy and response latency information respectively:
+
+```{r reduce}
+
+# Reduce to response latencies for use later in exploratory analysis:
+df_RT <- df %>% filter(Response %in% c('V1_RT', 'V2_RT', 'V3_RT', 'V4_RT')) %>% 
+  mutate(Valence = case_when(
+    Response == 'V1_RT' ~ 'positive',
+    Response == 'V2_RT' ~ 'positive',
+    Response == 'V3_RT' ~ 'negative',
+    Response == 'V4_RT' ~ 'negative'
+  ))
+
+# Reduce to accuracy information for use now:
+df <- df %>% filter(Response %in% c('V1_r', 'V2_r', 'V3_r', 'V4_r'))
+
+```
+
+<br>
+
+## Analyses
+
+We now perform the main analyses of our study.
+
+### Descriptive stats
+
+Look at Accuracy overall:
+
+```{r acc}
+
+(xtab <- table(df$Accuracy))
+round(prop.table(xtab), 3) * 100
+
+```
+
+Look at descriptive stats for Accuracy as a function of AxisInversion:
+
+```{r acc_axis}
+
+(xtab <- table(df$AxisInversion, df$Accuracy))
+round(prop.table(xtab, 1), 3) * 100
+
+```
+
+People were more likely to get the answers to the questions right if the graph was normal and not inverted.
+
+Look at descriptive stats for Accuracy as a function of Orientation:
+
+```{r acc_orient}
+
+(xtab <- table(df$Orientation, df$Accuracy))
+round(prop.table(xtab, 1), 3) * 100
+
+```
+
+Contrary to our predictions, speakers were more likely to get the answer right if quantity was on the x-axis, and time on the y-axis.
+
+Look at Accuracy as a function of Valence:
+
+```{r acc_val}
+
+(xtab <- table(df$Valence, df$Accuracy))
+round(prop.table(xtab, 1), 3) * 100
+
+```
+
+Look at descriptive stats for Accuracy as a function of Val_Al:
+
+```{r acc_val_al}
+
+(xtab <- table(df$Val_Al, df$Accuracy))
+round(prop.table(xtab, 1), 3) * 100
+
+```
+
+For graphs depicting quantity on the y-axis, people were more likely to get the answer right if the graph they looked at aligned with vertical valence metaphors.
+
+Get accuracy information for each graph type that was relevant to our hypotheses (Trend was not considered here):
+
+```{r all_graph_types}
+
+# Positive valence:
+positive <- df %>% filter(Valence == 'positive')            # Filter to positive valence
+(positive <- table(positive$Accuracy, positive$Version))    # Get raw N
+round(prop.table(positive, 2) * 100, 1)                     # Proportions
+
+# Negative valence:
+negative <- df %>% filter(Valence == 'negative')            # Filter to negative valence
+(negative <- table(negative$Accuracy, negative$Version))    # Get raw N
+round(prop.table(negative, 2) * 100, 1)                     # Proportions
+
+```
+
+<br>
+
+### Inferential stats
+
+Run Model 1, which tests the effect of axis inversion, quantity mapping, and valence on response accuracy.
+
+```{r model_1, message = FALSE}
+
+# Run chains in parallel:
+options(mc.cores = parallel::detectCores())
+
+# Turn variables into factors:
+df$Accuracy <- factor(df$Accuracy, levels = c('wrong', 'right')) 
+df$AxisInversion <- as.factor(df$AxisInversion)  
+df$Orientation <- as.factor(df$Orientation)  
+df$Valence <- as.factor(df$Valence)  
+
+# Set prior:
+my_priors <- c(prior(normal(0, 2), class = b),         
+               prior(normal(0, 2), class = 'sd')) 
+
+# Set controls:
+my_controls <- list(adapt_delta = 0.99,
+                    max_treedepth = 13)
+
+# Run model:
+xmdl <- brm(Accuracy ~ AxisInversion + Orientation + Valence +
+                (1 + Valence|Subject),
+                data = df, 
+                family = bernoulli,
+                init = 0,
+                chains = 4,
+                warmup = 2000,
+                iter = 4000,
+                prior = my_priors,
+                control = my_controls,
+                seed = 13)
+
+# Summary of model:
+summary(xmdl)
+
+# Get odds:
+round(exp(summary(xmdl)$fixed[2, 1]), 2)  # AxisInversion
+round(exp(summary(xmdl)$fixed[3, 1]), 2)  # Orientation
+round(exp(summary(xmdl)$fixed[4, 1]), 2)  # Valence
+
+# Posterior predictive checks:
+# pp_check(xmdl) 
+
+```
+
+Run leave-one-out cross-validation comparing intercept-only model with models with predictors left in:
+
+```{r LOOCV_model_1}
+
+# Run models to compare:
+
+  # Run intercept-only model:
+  #xmdl_null <- brm(Accuracy ~ 1 +
+  #              (1 + Valence|Subject),
+  #              data = df, 
+  #              family = bernoulli,
+  #              chains = 4,
+  #              warmup = 2000,
+  #              init = 0,
+  #              iter = 4000,
+  #              sample_prior = "yes",
+  #              control = my_controls,
+  #              seed = 13)
+
+  # Run AxisInversion-only model:
+  #xmdl_axis <- brm(Accuracy ~ AxisInversion +
+  #              (1 + Valence|Subject),
+  #              data = df, 
+  #              family = bernoulli,
+  #              init = 0,
+  #              chains = 4,
+  #              warmup = 2000,
+  #              iter = 4000,
+  #              prior = my_priors,
+  #              control = my_controls,
+  #              seed = 13)
+  
+  # Run Orientation-only model:
+  #xmdl_orient <- brm(Accuracy ~ Orientation +
+  #              (1 + Valence|Subject),
+  #              data = df, 
+  #              family = bernoulli,
+  #              init = 0,
+  #              chains = 4,
+  #              warmup = 2000,
+  #              iter = 4000,
+  #              prior = my_priors,
+  #              control = my_controls,
+  #              seed = 13)
+
+  # Run Valence-only model:
+  #xmdl_val <- brm(Accuracy ~ Valence +
+  #              (1 + Valence|Subject),
+  #              data = df, 
+  #              family = bernoulli,
+  #              init = 0,
+  #              chains = 4,
+  #              warmup = 2000,
+  #              iter = 4000,
+  #              prior = my_priors,
+  #              control = my_controls,
+  #              seed = 13)
+
+  
+# Calculate LOO for each model:
+#loo(xmdl_null)
+#loo(xmdl_axis)
+#loo(xmdl_orient)
+#loo(xmdl_val)
+
+# Compare null model with AxisInversion model:
+#loo_compare(xmdl_null, xmdl_axis)
+
+# Compare null model with Orientation model:
+#loo_compare(xmdl_null, xmdl_orient)
+
+# Compare null model with Valence model:
+#loo_compare(xmdl_null, xmdl_val)
+
+```
+
+Run Model 2, which tests the effect of vertical valence alignment on response accuracy.
+
+```{r model_2}
+
+# Filter to graphs with quantity on the y-axis:
+df_y <- df %>% filter(Orientation == 'quant_y')
+
+# Create copies of relevant predictors:
+df_y$AxisInversion_c <- factor(df_y$AxisInversion, levels = c('normal', 'inverted'))
+df_y$Valence_c <- factor(df_y$Valence, levels = c('positive', 'negative'))
+df_y$Accuracy <- factor(df_y$Accuracy, levels = c('wrong', 'right'))
+
+# Deviation code these predictors:
+contrasts(df_y$AxisInversion_c) <- contr.sum(2) / 2
+contrasts(df_y$Valence_c) <- contr.sum(2) / 2
+
+# Run model:
+y_mdl <- brm(Accuracy ~ AxisInversion_c * Valence_c +
+                (1 + Valence_c|Subject),
+                data = df_y, 
+                family = bernoulli,
+                init = 0,
+                chains = 4,
+                warmup = 2000,
+                iter = 4000,
+                prior = my_priors,
+                control = my_controls,
+                seed = 13)
+
+# Posterior predictive checks:
+# pp_check(y_mdl) 
+
+# Summary of model:
+summary(y_mdl)
+
+# Get odds:
+round(exp(summary(y_mdl)$fixed[4, 1]), 2)  
+
+# Get posterior samples:
+myposts <- posterior_samples(y_mdl) %>% 
+  select(b_Intercept, b_AxisInversion_c1, b_Valence_c1, `b_AxisInversion_c1:Valence_c1`)
+
+# Save samples for different columns:
+intercept <- myposts$b_Intercept
+axis_coef <- myposts$b_AxisInversion_c1
+val_coef <- myposts$b_Valence_c1
+interaction_coef <- myposts$`b_AxisInversion_c1:Valence_c1`
+
+# Normal, positive graphs:
+normal_positive <- (intercept + 
+                      (+0.5) * axis_coef + 
+                      (+0.5) * val_coef +
+                      (+0.5) * (+0.5) * interaction_coef)
+round(quantile(normal_positive, 0.025), 2)
+round(quantile(normal_positive, 0.975), 2)
+
+# Normal, negative graphs:
+normal_negative <- (intercept + 
+                      (+0.5) * axis_coef + 
+                      (-0.5) * val_coef +
+                      (+0.5) * (-0.5) * interaction_coef)
+round(quantile(normal_negative, 0.025), 2)
+round(quantile(normal_negative, 0.975), 2)
+
+# Inverted, positive graphs:
+inverted_positive <- (intercept + 
+                      (-0.5) * axis_coef + 
+                      (+0.5) * val_coef +
+                      (-0.5) * (+0.5) * interaction_coef)
+round(quantile(inverted_positive, 0.025), 2)
+round(quantile(inverted_positive, 0.975), 2)
+
+# Inverted, negative graphs:
+inverted_negative <- (intercept + 
+                      (-0.5) * axis_coef + 
+                      (-0.5) * val_coef +
+                      (-0.5) * (-0.5) * interaction_coef)
+round(quantile(inverted_negative, 0.025), 2)
+round(quantile(inverted_negative, 0.975), 2)
+
+```
+
+Run LOO-CV on model 2:
+
+```{r LOOCV_model_2}
+
+# Run models to compare:
+
+  # Run intercept-only model:
+  #y_mdl_null <- brm(Accuracy ~ 1 +
+  #              (1 + Valence_c|Subject),
+  #              data = df_y, 
+  #              family = bernoulli,
+  #              init = 0,
+  #              chains = 4,
+  #              warmup = 2000,
+  #              iter = 4000,
+  #              sample_prior = "yes",
+  #              control = my_controls,
+  #              seed = 13)
+
+# Calculate LOO for each model:
+#loo(y_mdl_null)
+#loo(y_mdl)
+
+# Compare null model with interaction model:
+#loo(y_mdl_null, y_mdl)
+
+```
+
+Create table summary of model 1:
+
+```{r table_summary_1}
+
+# Make table of fixed effects:
+summary1 <- tibble(
+  "Predictors" =  c('Axis Orientation',
+                   'Quantity Mapping',
+                   'Valence'),
+  "Estimate" =    c(round(summary(xmdl)$fixed[2, 1], 2),
+                    round(summary(xmdl)$fixed[3, 1], 2),
+                    round(summary(xmdl)$fixed[4, 1], 2)),
+  "Std. Error" =  c(round(summary(xmdl)$fixed[2, 2], 2),
+                    round(summary(xmdl)$fixed[3, 2], 2),
+                    round(summary(xmdl)$fixed[4, 2], 2)),
+  "Lower"      =  c(round(summary(xmdl)$fixed[2, 3], 2),
+                    round(summary(xmdl)$fixed[3, 3], 2),
+                    round(summary(xmdl)$fixed[4, 3], 2)),
+  "Upper"      =  c(round(summary(xmdl)$fixed[2, 4], 2),
+                    round(summary(xmdl)$fixed[3, 4], 2),
+                    round(summary(xmdl)$fixed[4, 4], 2)))
+
+# Factorise predictor column and re-order levels:
+summary1$Predictors <- factor(summary1$Predictors, levels = c('Valence', 'Quantity Mapping', 'Axis Orientation'))
+
+```
+
+Create table summary of model 2:
+
+```{r table_summary_2}
+
+# Make table of fixed effects:
+summary2 <- tibble(
+  "Predictors" = c("Axis Orientation", 
+                   "Valence",
+                   "Axis Orientation x Valence"),
+  "Estimate"   = c(round(summary(y_mdl)$fixed[2, 1], 1),
+                   round(summary(y_mdl)$fixed[3, 1], 1),
+                   round(summary(y_mdl)$fixed[4, 1], 2)),
+  "Std. Error" = c(round(summary(y_mdl)$fixed[2, 2], 2),
+                   round(summary(y_mdl)$fixed[3, 2], 2),
+                   round(summary(y_mdl)$fixed[4, 2], 2)),
+  "Lower"      = c(round(summary(y_mdl)$fixed[2, 3], 2),
+                   round(summary(y_mdl)$fixed[3, 3], 2),
+                   round(summary(y_mdl)$fixed[4, 3], 2)),
+  "Upper"      = c(round(summary(y_mdl)$fixed[2, 4], 2),
+                   round(summary(y_mdl)$fixed[3, 4], 2),
+                   round(summary(y_mdl)$fixed[4, 4], 2)))
+
+# Factorise predictor column:
+summary2$Predictors <- factor(summary2$Predictors, levels = c("Axis Orientation x Valence", "Valence", "Axis Orientation"))
+
+```
+
+Wrangle outputs from model 1 for plotting:
+
+```{r model_1_outputs}
+
+# Convert output of model 1 into tibble:
+xtrans <- ggs(xmdl)
+
+# Filter xmdl_trans to parameter rows and change name of Parameter column to match table summary (above):
+xmdl_trans <- xtrans %>% 
+  filter(Parameter %in% c('b_AxisInversionnormal', 'b_Orientationquant_y', 'b_Valencepositive')) %>% 
+  rename(Predictors = Parameter)
+
+# Change name of predictor levels:
+xmdl_trans$Predictors <- revalue(xmdl_trans$Predictors, c("b_AxisInversionnormal" = "Axis Orientation",
+                                                          "b_Orientationquant_y" = "Quantity Mapping",
+                                                          "b_Valencepositive" = "Valence"))
+
+```
+
+Wrangle outputs from model 2 for plotting:
+
+```{r model_2_outputs}
+
+# Convert output of model 2 into tibble:
+ytrans <- ggs(y_mdl)
+
+# Filter xmdl_trans_2 to interaction row:
+xmdl_trans_2 <- ytrans %>% 
+  filter(Parameter %in% c('b_AxisInversion_c1', "b_Valence_c1", 'b_AxisInversion_c1:Valence_c1')) %>% 
+  rename(Predictors = Parameter)
+
+# Change name of predictor levels:
+xmdl_trans_2$Predictors <- revalue(xmdl_trans_2$Predictors, c('b_AxisInversion_c1' = 'Axis Orientation',
+                                                              'b_Valence_c1' = 'Valence', 
+                                                              "b_AxisInversion_c1:Valence_c1" = "Axis Orientation x Valence"))
+
+```
+
+Make plot showing posterior distributions for model 1 (inspired by https://osf.io/atr57/):
+
+```{r model1_posteriors, width = 7, height = 5}
+
+# Combine point estimates with posterior samples:
+posterior <- merge(summary1, xmdl_trans, by = 'Predictors')
+
+# Re-order levels:
+posterior$Predictors <- factor(posterior$Predictors, levels = c("Valence", "Quantity Mapping", "Axis Orientation"))
+
+# Make plot:
+posterior %>%
+  ggplot(aes(x = value, y = Predictors, fill = Predictors, xmin = Lower, xmax = Upper)) +
+  stat_slab(alpha = 0.75) +
+  geom_linerange(size = 1) + 
+  theme_minimal() +
+  geom_vline(xintercept = 0, 
+             color = "black",
+             linetype = 2) +
+    theme(axis.text.x = element_text(size = 10.5,
+                                     colour = 'black'), 
+          axis.title.x = element_text(size = 13,
+                                      face = "bold",
+                                      vjust = -0.7),
+          axis.title.y = element_blank(),
+          legend.position = "none") +
+  scale_fill_manual(values = c("skyblue", "skyblue", "skyblue")) +
+  scale_x_continuous(name = "Accuracy (log odds)",
+                     breaks = seq(-5, 10, 2.5)) 
+
+# Save plot as PDF:
+#ggsave('../../table_creation/E1_model1.pdf', width = 6, height = 5)
+
+```
+
+Make plot showing posterior distributions for model 2 (inspired by https://osf.io/atr57/):
+
+```{r model2_posteriors, width = 6, height = 4}
+
+# Combine point estimates with posterior samples:
+posterior2 <- merge(summary2, xmdl_trans_2, by = 'Predictors')
+
+# Re-order levels:
+posterior2$Predictors <- factor(posterior2$Predictors, levels = c("Axis Orientation x Valence", "Valence", "Axis Orientation"))
+
+# Make plot:
+posterior2 %>%
+  ggplot(aes(x = value, y = Predictors, fill = Predictors, xmin = Lower, xmax = Upper)) +
+  stat_slab(alpha = 0.75) +
+  theme_minimal() +
+  geom_linerange(size = 1) +
+  geom_vline(xintercept = 0, 
+             color = "black",
+             linetype = 2) +
+    theme(axis.text.x = element_text(size = 10.5,
+                                     colour = 'black'), 
+          axis.title.x = element_text(size = 13,
+                                      face = "bold",
+                                      vjust = -0.7),
+          axis.title.y = element_blank(),
+          legend.position = "none") +
+  scale_fill_manual(values = c("skyblue", "skyblue", "skyblue")) +
+  scale_x_continuous(name = "Accuracy (log odds)",
+                     breaks = seq(-5, 15, 2.5)) 
+
+# Save plot as PDF:
+#ggsave('../../table_creation/E1_model2.pdf', width = 6, height = 4)
+
+```
+
+Save table summaries:
+
+```{r save_tables}
+
+# Remove lower and upper 95% interval values:
+summary1 <- summary1 %>% select(-Lower, -Upper)           # Model 1
+summary2 <- summary2 %>% select(-Lower, -Upper)           # Model 2
+
+# Save summary of model 1 as CSV:
+#write_csv(summary1, '../../table_creation/E1_model1.csv')
+
+# Save summary of model 2 as CSV:
+#write_csv(summary2, '../../table_creation/E1_model2.csv')
+
+```
+
+Get accuracy proportions for each graph type:
+
+```{r main effects}
+
+# Normal graphs:
+(xtab <- df_y %>% 
+  filter(AxisInversion == 'normal') %>% 
+  with(table(Accuracy, Valence)))
+round(prop.table(xtab, 2) * 100, 1)
+
+# Inverted graphs:
+(xtab <- df_y %>% 
+  filter(AxisInversion == 'inverted') %>% 
+  with(table(Accuracy, Valence)))
+round(prop.table(xtab, 2) * 100, 1)
+
+```
+
+<br>
+
+### Exploratory analysis
+
+First, check whether axis inversion effect was stronger for y-axis graphs than x-axis graphs:
+
+```{r axisinv_orient}
+
+(xtab <- table(df$Accuracy, df$AxisInversion, df$Orientation))
+round(prop.table(xtab, c(2, 3)), 3) * 100
+
+```
+
+For inverted graphs, check effects of time axis versus quantity axis being subverted:
+
+```{r time_vs_quantity}
+
+# Filter dataset to inverted graphs and add column to mark whether quantity or time is subverted:
+df %>% 
+  filter(AxisInversion == 'inverted') %>%
+  mutate(WhichSubvert = case_when(
+    Orientation == 'quant_y' & InvertXY == 'y' ~ 'quant',
+    Orientation == 'quant_x' & InvertXY == 'x' ~ 'quant',
+    Orientation == 'quant_y' & InvertXY == 'x' ~ 'time',
+    Orientation == 'quant_x' & InvertXY == 'y' ~ 'time')) %>%
+  with(print(table(Accuracy, WhichSubvert))) %>% 
+  prop.table(2) %>% 
+  round(3) * 100
+
+```
+
+Check response latencies for participants responding to graphs mapping quantity information onto the x-axis versus the y-axis:
+
+```{r RTs}
+
+df_RT %>% 
+  group_by(Orientation) %>% 
+  summarise(mean(as.numeric(Measurement))) 
+
+```
+
+<br>
+
+### Reviewer-requested additional analysis
+
+#### Educational background
+
+We now look at the effect of educational background on responses.
+
+First, look at demographic information:
+
+```{r demo_ed}
+
+(xtab <- table(df$Ed))
+round(prop.table(xtab) * 100, 1)
+
+```
+
+Look at how accuracy varies according to education level:
+
+```{r acc_ed}
+
+(xtab <- table(df$Ed, df$Accuracy))                     # Raw stats
+(xtab <- round(prop.table(xtab, 1), 3) * 100)           # Proportions
+
+```
+
+Look at how response time varied according to education level:
+
+```{r RT_ed}
+
+df_RT %>% 
+  group_by(Ed) %>% 
+  summarise(mean(as.numeric(Measurement))) %>% 
+  arrange(desc(`mean(as.numeric(Measurement))`))
+
+```
+
+Run Model 1 but with an interaction with Ed entered for each of the predictors, to see if Education modulates any of the effects:
+
+```{r model_1_Ed, message = FALSE}
+
+# Turn variables into factors:
+df$Ed <- factor(df$Ed)
+
+# Run model:
+xmdl <- brm(Accuracy ~ (AxisInversion * Ed) + 
+                       (Orientation * Ed) + 
+                       (Valence * Ed) +
+                (1 + Valence|Subject),
+                data = df, 
+                family = bernoulli,
+                init = 0,
+                chains = 4,
+                warmup = 2000,
+                iter = 4000,
+                prior = my_priors,
+                control = my_controls,
+                seed = 13)
+
+# Summary of model:
+summary(xmdl)
+
+# Posterior predictive checks:
+# pp_check(xmdl) 
+
+```
+
+None of the interactions with the Ed predictor were significant (their 95% credible intervals all contained zero).
+
+Run Model 2, which tests the effect of vertical valence alignment on response accuracy, except this time, include an interaction with Ed to see if this modulates the effects:
+
+```{r model_2_Ed}
+
+# Create copies of relevant predictors:
+df_y$Ed_c <- as.factor(df_y$Ed)
+contrasts(df_y$Ed_c) <- contr.sum(8) / 2
+
+# Run model:
+y_mdl <- brm(Accuracy ~ (AxisInversion_c * Valence_c) * Ed_c +
+                (1 + Valence_c|Subject),
+                data = df_y, 
+                family = bernoulli,
+                init = 0,
+                chains = 4,
+                warmup = 2000,
+                iter = 4000,
+                prior = my_priors,
+                control = my_controls,
+                seed = 13)
+
+# Posterior predictive checks:
+# pp_check(y_mdl) 
+
+# Summary of model:
+summary(y_mdl)
+
+```
+
+None of the interactions with the Ed predictor were significant (their 95% credible intervals all contained zero).
+
+<br>
+
+#### Speed-accuracy trade-off
+
+We now test the possibility that there was a speed-accuracy trade-off in responses. First, we need to do some wrangling to ensure the reaction time data are in the same dataframe as the accuracy data:
+
+```{r more_wrangling}
+
+# Create new dataframe called `df_acc` with relevant columns from default dataframe `df`:
+df_acc <- df %>% select(Subject, Version, Response, Accuracy)
+
+# Change values in Response column so they match values in `df_RT` (reaction time) dataframe:
+df_acc$Response[df_acc$Response == "V1_r"] <- "V1_RT"
+df_acc$Response[df_acc$Response == "V2_r"] <- "V2_RT"
+df_acc$Response[df_acc$Response == "V3_r"] <- "V3_RT"
+df_acc$Response[df_acc$Response == "V4_r"] <- "V4_RT"
+
+# Merge `df_acc` and `df_RT` dataframes, arrange by Subject column, and select relevant columns:
+df_acc <- merge(df_acc, df_RT, by = c('Subject', 'Version', 'Response')) %>% 
+  arrange(Subject) %>% 
+  select(Subject, AxisInversion, Orientation, Valence, Accuracy = Accuracy.x, Measurement)
+
+```
+
+Look at the mean reaction times for incorrect and correct responses:
+
+```{r SAT}
+
+df_acc %>% 
+  group_by(Accuracy) %>% 
+  summarise(mean(as.numeric(Measurement)))
+  
+```
+
+Incorrect responses were more likely to be slower, which is the opposite of what we'd expect from a speed-accuracy trade-off.
+
+Now, look at this solely for graphs that plotted quantity on the y-axis:
+
+```{r SAT_quantity_x}
+
+df_x <- df_acc %>% filter(Orientation == 'quant_x')
+df_x %>% group_by(Accuracy) %>% summarise(mean(as.numeric(Measurement)))
+
+```
+
+Even for these graphs, correct responses were more likely to be quicker than incorrect responses.

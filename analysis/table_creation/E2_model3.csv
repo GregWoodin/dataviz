@@ -1,0 +1,8 @@
+Predictors,Estimate,Std. Error
+Axis Orientation,0.26,0.5
+Valence,1.94,0.62
+Hand,-0.2,0.49
+Axis Orientation x Valence,1.69,0.81
+Axis Orientation x Hand,-1.19,0.88
+Valence x Hand,-1.03,0.78
+Axis Orientation x Valence x Hand,-0.48,1.29
