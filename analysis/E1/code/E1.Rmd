@@ -816,7 +816,7 @@ posterior %>%
                      breaks = seq(-5, 10, 2.5)) 
 
 # Save plot as PDF:
-#ggsave('../../table_creation/E1_model1.pdf', width = 6, height = 5)
+ggsave('../../table_creation/E1_model1.pdf', width = 6, height = 5)
 
 ```
 
@@ -851,7 +851,7 @@ posterior2 %>%
                      breaks = seq(-5, 15, 2.5)) 
 
 # Save plot as PDF:
-#ggsave('../../table_creation/E1_model2.pdf', width = 6, height = 4)
+ggsave('../../table_creation/E1_model2.pdf', width = 6, height = 4)
 
 ```
 
@@ -864,10 +864,10 @@ summary1 <- summary1 %>% select(-Lower, -Upper)           # Model 1
 summary2 <- summary2 %>% select(-Lower, -Upper)           # Model 2
 
 # Save summary of model 1 as CSV:
-#write_csv(summary1, '../../table_creation/E1_model1.csv')
+write_csv(summary1, '../../table_creation/E1_model1.csv')
 
 # Save summary of model 2 as CSV:
-#write_csv(summary2, '../../table_creation/E1_model2.csv')
+write_csv(summary2, '../../table_creation/E1_model2.csv')
 
 ```
 
