@@ -662,7 +662,7 @@ posterior %>%
                      breaks = seq(-5, 10, 2.5)) 
 
 # Save plot as PDF:
-#ggsave('../../table_creation/new/E2_model1.pdf', width = 6, height = 5)
+ggsave('../../table_creation/E2_model1.pdf', width = 6, height = 5)
   
 ```
 
@@ -674,7 +674,7 @@ Save table of model coefficients:
 summary1 <- summary1 %>% select(-Lower, -Upper)
 
 # Save as CSV:
-#write_csv(summary1, '../../table_creation/E2_model1.csv')
+write_csv(summary1, '../../table_creation/E2_model1.csv')
 
 ```
 
@@ -933,7 +933,7 @@ posterior %>%
                      breaks = seq(-5, 15, 2.5)) 
 
 # Save plot as PDF:
-#ggsave('../../table_creation/new/E2_model2.pdf', width = 6, height = 5)
+ggsave('../../table_creation/E2_model2.pdf', width = 6, height = 5)
 
 ```
 
@@ -945,7 +945,7 @@ Save table summary for model 2:
 summary2 <- summary2 %>% select(-Lower, -Upper)
 
 # Save as CSV:
-#write_csv(summary2, '../../table_creation/E2_model2.csv')
+write_csv(summary2, '../../table_creation/E2_model2.csv')
 
 ```
 
@@ -1201,7 +1201,7 @@ posterior %>%
                      breaks = seq(-8, 8, 2)) 
   
 # Save plot as PDF:
-#ggsave('../../table_creation/new/E2_model3.pdf', width = 6, height = 5)
+ggsave('../../table_creation/E2_model3.pdf', width = 6, height = 5)
 
 ```
 
@@ -1213,7 +1213,7 @@ Save table summary:
 summary3 <- summary3 %>% select(-Lower, -Upper)
 
 # Save as CSV:
-#write_csv(summary3, '../../table_creation/E2_model3.csv')
+write_csv(summary3, '../../table_creation/E2_model3.csv')
 
 ```
 
