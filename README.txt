@@ -81,6 +81,7 @@ The analysis was conducted using the programming language R inside RStudio. The 
 - brms     
 - ggmcmc
 - tidybayes
+- ggpubr
 
 If the reader wants to try the analyses out for themselves, they will need to download the data files outlined in the **Data** section below, as well as the analysis scripts (`.Rmd`) outlined in the **Analysis scripts** section.
 
@@ -104,9 +105,8 @@ The data for each experiment are presented in six `.csv` spreadsheets, each corr
 
 IP addresses and MTurk IDs have been removed from these spreadsheets for anonymity. There were no duplicates, suggesting that no participants completed either experiment more than once, nor did any participant complete both experiments.
 
-The following codebook contains information about the columns in the above spreadsheets and how to interpret the values in these columns (presented in `.html` and `.pdf` formats):
+The following codebook contains information about the columns in the above spreadsheets and how to interpret the values in these columns:
 -   `analysis/codebook.html`
--   `analysis/codebook.pdf`
 
 We have also included the valence norms collected by Warriner et al. (2013) that we used to choose the valenced words for use in our experimental materials in the following `.csv` spreadsheet:
 -   `analysis/E1/data/valence_list.csv`
@@ -127,7 +127,7 @@ The following analysis scripts show the analysis we conducted and the results we
     - `analysis/E1/code/valence_norms.pdf`
 
 ### Figures
-These are the figures presented in the manuscript in `.pdf` format. Figures 3 and 4 were created by running the above analysis scripts (`.Rmd` files). The code in these scripts that saves the figures is currently commented out but can be uncommented and edited in R if the reader wants to save the images (e.g., in a different file format). 
+These are the figures presented in the manuscript in `.pdf` format. Figures 3 and 4 were created by running the above analysis scripts (`.Rmd` files). 
 
 -   `analysis/figures/fig1.pdf`
 -   `analysis/figures/fig2.pdf`
